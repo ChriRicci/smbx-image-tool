@@ -4,6 +4,8 @@ This is a simple tool made to handle various tasks involving images. The princip
 
 This tool was originally made by FrozenQuills, but I asked and was granted the permission to edit and extend it. Only contributor is me, I'm not asking for any more. 
 
+# Action arguments
+
 action arguments: 
 --join {images, spritesheet}
 --separe {images, spritesheet}
@@ -17,6 +19,11 @@ i/0 arguments:
 --input-name
 --output-name
 
+spritesheet arguments:
+--spritesheet-width
+--spritesheet-height
+--width
+--height
 
 optional arguments:
 

@@ -1,10 +1,3 @@
-#this function takes a directory and check if it exists. if it does, it returns 1, otherwise, it prints a message and returns 0.
-def checkDir(d):
-    if (not os.path.isdir(d)):
-        print('ERROR: ' + d + ' was not found. Please make sure it exists first.')
-        return 0
-    return 1
-
 #this function takes a list of directories and searches for images with extension "png". if any images are found, it will add them to a list. the function then returns this list.
 def getImages(dirList):
     imgList = []
@@ -15,6 +8,21 @@ def getImages(dirList):
                 img = Image.open(d + "/" + f)
                 w, h = img.size
                 print("Found image: " + f + " | Width: " + str(w) + " | Height: " + str(h))
+                imgList.append(img)
+    return imgList
+
+#this function get any image which has a config (.txt) file. it takes a list of directories and return a list of images.
+def getJoinedImages(dirList):
+    imgList = []
+    for d in dirList:
+        print("Searching for images in " + d + "...")
+        for f in sorted(os.listdir(d)):
+            if f.endswith("png"):
+                img = Image.open(d + "/" + f)
+                if (os.path.isfile(os.path.splitext(filename)[0] + '.txt')):
+                    print("Configuration not found for " + f + ". Skipping.")
+                    continue
+                print("Found image: " + f)
                 imgList.append(img)
     return imgList
 
@@ -101,3 +109,80 @@ def joinImagesOld(newimg, imgList, space):
         newimg.paste(img, (x, diff))
         x = x + w + space
     return newimg
+
+
+def joinImages(dirList, imgDir, imgName, resNum, imageSpace, sepPal):
+    imageList = getImages(dirList)
+    if len(imageList) == 0:
+        print("ERROR: No image found in any directory. Quitting the joining process.")
+        quitProgram()
+
+    #resize images if requested
+    if resNum != 1:
+        print('The images will be resized.')
+        imageList = resizeImages(imageList, resNum)
+    #get palette
+    print("\nGenerating palette...")
+    palettes = getPalette(imageList)
+    paletteImage, palw, palh  = createPaletteImage(palettes)
+
+    #get width and height for the new image
+    print("Searching for width and height of the new image...")
+    maxHeight = getMaxHeight(imageList)
+    maxWidth = getMaxWidth(imageList, imageSpace)
+    if sepPal:
+        print("Requested to separate palette. Saving palette image...")
+        newImg.save(newImgDir + "/" + newImgName + "Palette.png")
+    else:
+        #update maxwidth and maxheight so we can paste the palette image into the joined image
+        if maxWidth < palw: maxWidth = palw
+        maxHeight = maxHeight + palh 
+
+    print("Saving image data...")
+    saveImagesData(imgDir + "/" + imgName + ".txt", imageList, maxWidth, maxHeight)
+
+    print("Creating new image: width = " + str(maxWidth) + "; height = " + str(maxHeight))
+    newImage = Image.new('RGBA', (maxWidth, maxHeight), (255, 120, 255, 255)).convert("RGBA")
+    newImage = joinImagesOld(newImage, imageList, imageSpace)
+    if not sepPal:
+        print("Pasting palette") 
+        newImage.paste(paletteImage, (0, maxHeight))
+
+    print("Saving image: name = " + imgName + "; destination = " + imgDir)
+    newImage.save(imgDir + "/" + imgName + ".png")
+
+
+#this function separes images that have config (.txt) with them. because the names of the images are contained in the config file, there's no need to specify any output name. if --extract-palette is specified, it will get the palette pasted in the image (if it's there) and save it as a new image in output dir, or generate a new one if needed.
+def separeImages(inputDirs, outputDir, inputName, res_num, get_pal):
+    imageList = getJoinedImages(inputDirs)
+    if len(imageList) == 0:
+        print("ERROR: No image found in any directory. Quitting the joining process.")
+        quitProgram()
+    for img in imageList:
+        print('Splitting image: ' + os.path.basename(img.filename))
+        with open(os.path.splitext(img.filename)[0] + '.txt') as config:
+            #the config's last line contains the real height and width (without the palette) and the space between images.
+            lines = config.read().splitlines()
+            realw, realh, space = lines[-1].rstrip('\n').split('|')
+            lines.remove(lines[-1])
+
+            #separating the images
+            x = 0
+            for line in lines:
+                line = line.rstrip('\n')
+                filename, w, h = line.split('|')
+                print('Cropping image ' + fileName + ', width = ' + str(w) + ', height = ' + str(h))
+                diff = (imagesHeight - h) / 2
+                newimg = img.crop((x, diff, x + w, diff + h))
+                newimg = newimg.resize((int(w * res_num), int(h * res_num)))
+                newimg.save(outputDir + '/' + filename)
+                x += w + space
+           
+            #palette related stuff
+            imgw, imgh = img.size
+            if get_pal and imgh != realh:
+                print("Saving palette of " + os.path.basename(img.filename))
+                paletteimg = img.crop((0, realh, imgw, imgh))
+                paletteimg.save(outputDir + '/' + os.path.basename(os.path.splitext(img.filename)[0]) + '.png')
+            else:
+                print("the palette isn't pasted on the image, so whatever. TODO TODO DOTO TODO")
