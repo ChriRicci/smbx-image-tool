@@ -6,6 +6,7 @@ import time
 import sys
 import argparse
 import collections
+import re
 #import new.py
 
 #this function simply returns all the arguments. i made this to separe the argument stuff from the main.
@@ -65,7 +66,7 @@ def check_dirs(idir, odir):
             print('ERROR: ' + d + ' was not found. Please make sure it exists first.')
             dirsToRemove.append(d)
     
-    #remove any directory that doesn't exist
+    #remove any directory that doesn't exist from the input dirs
     for d in dirsToRemove:
         idir.remove(d)
   
@@ -89,22 +90,35 @@ def check_spritesheet_args(args):
         elif args.image_height == None or args.image_height <= 0:
             raise ValueError("ERROR: Bad argument given to --image-height")
 
-def getImages(dirs, match, should_join, should_separe):
+#this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
+def getImages(dirs, match, should_separe, include_gifs, include_subdirs):
     imgList = []
     for d in dirs:
+        dirList = []
         print('Searching for images in ' + d + '...')
         for f in sorted(os.listdir(d)):
-            if f.endswith('png'):
+            if f.endswith('png') or include_gifs and f.endswith('gif'):
                 img = Image.open(d + '/' + f)
-                w, h = img.size
-                print("Found image: " + f + " | Width: " + str(w) + " | Height: " + str(h))
-                if should_join:
-                    log_image(img)
-                if should_separe:
-                    if (os.path.isfile(os.path.splitext(filename)[0] + '.txt')):
-                        print("Configuration not found for " + f + ". Skipping.")
+                print("Found image: " + f)
+                if include_gifs:
+                    if img.filename[-5:] == 'm.gif':
+                        print('This image is a gif mask image. Skipping.')
                         continue
+                    if not os.path.isfile(os.path.splitext(img.filename)[0] + 'm.gif'):
+                        print('Mask not found. Skipping.')
+                        continue
+                if should_separe and not os.path.isfile(os.path.splitext(img.filename)[0] + '.cfg'):
+                    print('Configuration not found. Skipping.')
+                    continue
+                if match != None and re.match(match, f) == None:
+                    print('The name of the image didn\'t match the input name. Skipping.')
+                    continue
                 imgList.append(img)
+            elif os.path.isdir(d + '/' + f):
+                dirList.append(d + '/' + f)
+        if include_subdirs and len(dirList) != 0:
+            newImgList = getImages(dirList, match, should_separe, include_gifs, include_subdirs)
+            imgList += newImgList
     return imgList
 
 def real_main():
@@ -116,10 +130,12 @@ def real_main():
     #check if there are any errors with the spritesheet arguments
     check_spritesheet_args(args)
 
-    #imageList = getImages(args.input_dir, args.input_name, args.separe)
-    #if len(imageList) == 0:
-    #    raise ValueError("ERROR: No image found in any directory.")
-
+    imageList = getImages(args.input_dir, args.input_name, args.separe, args.convert_gifs, args.include_subdirs)
+    if len(imageList) == 0:
+        raise ValueError("ERROR: No image found in any directory.")
+    
+    for img in imgList:
+        #do a lot of shit
 
 #Execute main action.
    # if (args.join): joinImages(args.input_dir, args.output_dir, "joinedimages", args.resize, 2, 0)

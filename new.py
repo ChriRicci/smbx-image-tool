@@ -1,31 +1,3 @@
-#this function takes a list of directories and searches for images with extension "png". if any images are found, it will add them to a list. the function then returns this list.
-def getImages(dirList):
-    imgList = []
-    for d in dirList:
-        print("Searching for images in " + d + "...")
-        for f in sorted(os.listdir(d)):
-            if f.endswith("png"):
-                img = Image.open(d + "/" + f)
-                w, h = img.size
-                print("Found image: " + f + " | Width: " + str(w) + " | Height: " + str(h))
-                imgList.append(img)
-    return imgList
-
-#this function get any image which has a config (.txt) file. it takes a list of directories and return a list of images.
-def getJoinedImages(dirList):
-    imgList = []
-    for d in dirList:
-        print("Searching for images in " + d + "...")
-        for f in sorted(os.listdir(d)):
-            if f.endswith("png"):
-                img = Image.open(d + "/" + f)
-                if (os.path.isfile(os.path.splitext(filename)[0] + '.txt')):
-                    print("Configuration not found for " + f + ". Skipping.")
-                    continue
-                print("Found image: " + f)
-                imgList.append(img)
-    return imgList
-
 #this function takes a list of images and a file. it will loop through all the images and write their name and size to the file.
 def saveImagesData(filename, imgList, maxw, maxh):
     imageData = open(filename, 'w')
