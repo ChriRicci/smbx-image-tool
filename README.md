@@ -22,13 +22,13 @@ i/0 arguments:
 spritesheet arguments:
 --spritesheet-width
 --spritesheet-height
---width
---height
+--image-width
+--image-height
 
 optional arguments:
 
 --resize
---extract-palette
---convert-gifs
---recursive
-
+--separate-palette
+---convert-gifs
+--include-subdirectories
+--space
