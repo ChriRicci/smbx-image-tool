@@ -4,31 +4,35 @@ This is a simple tool made to handle various tasks involving images. The princip
 
 This tool was originally made by FrozenQuills, but I asked and was granted the permission to edit and extend it. Only contributor is me, I'm not asking for any more. 
 
-# Action arguments
+#Arguments
 
-action arguments: 
---join {images, spritesheet}
---separe {images, spritesheet}
---resize-only
---extract-palette-only
+Action arguments: 
+- --join {images, spritesheet}
+- --separe {images, spritesheet}
+- --skip, --no-join-or-resize
 
-i/0 arguments:
+I/O arguments:
+- --input-dir
+- --output-dir
+- --input-name
+- --output-name
 
---input-dir
---output-dir
---input-name
---output-name
+Spritesheet arguments:
+- --spritesheet-width
+- --spritesheet-height
+- --image-width
+- --image-height
 
-spritesheet arguments:
---spritesheet-width
---spritesheet-height
---image-width
---image-height
+Optional arguments:
+- --resize
+- --separate-palette
+- --convert-gifs
+- --include-subdirectories
+- --space
 
-optional arguments:
-
---resize
---separate-palette
----convert-gifs
---include-subdirectories
---space
+#To Do
+- Add support for spritesheet (i.e. use the spritesheet arguments instead of pasting the images horizontally)
+- Sort the colors when getting a palette from an image
+- Support converting a gif with mask
+- Add new.py as a module for imagetool.py and paste all helper functions there
+- Try to make the code more readable, think of better ways to do some stuff
