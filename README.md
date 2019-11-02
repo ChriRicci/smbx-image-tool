@@ -4,7 +4,7 @@ This is a simple tool made to handle various tasks involving images. The princip
 
 This tool was originally made by FrozenQuills, but I asked and was granted the permission to edit and extend it. Only contributor is me, I'm not asking for any more. 
 
-#Arguments
+# Arguments
 
 Action arguments: 
 - --join {images, spritesheet}
@@ -30,7 +30,7 @@ Optional arguments:
 - --include-subdirectories
 - --space
 
-#To Do
+# To Do
 - Add support for spritesheet (i.e. use the spritesheet arguments instead of pasting the images horizontally)
 - Sort the colors when getting a palette from an image
 - Support converting a gif with mask
