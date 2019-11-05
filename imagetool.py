@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument('-s', '--separe', choices=['images', 'spritesheet'], help='Separates the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the image found in the program\'s directory (if it finds it).')
     parser.add_argument('--skip', '--no-join-or-separe', action='store_true', help='Don\'t join pr separe, instead simply save the images to output directory. This can be used for debugging purposes, or to just do single actions like resizing the images or extracting their palettes.')
     #directory arguments
-    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default='./edit', help= 'The input directory, more directories can be specified. The default is "./edit".')
+    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=['./edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
     parser.add_argument('-odir', '--output-dir', metavar='DIR', default='./output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
     parser.add_argument('-in', '--input-name', metavar='', help='If given, when joining or separing the tool will search for filenames matching this name.')
     parser.add_argument('-on', '--output-name', metavar='', default='joinedImages', help='If given, the tool will rename any output images by this name, followed by numbers if there is more than one image. The default is \'joinedImages\'') 
@@ -63,43 +63,17 @@ def check_spritesheet_arg(arg, argname):
 
 #this function performs various checks on an image. they are done when getting the images.
 def check_image(f, match, should_separe):
+    basename = os.path.basename(f)
     if f.endswith('gif'):
         if f[-5:] == 'm.gif':
-            raise ValueError('This image is a gif mask image. Skipping.')
+            raise ValueError(basename + ' is a gif mask image. Skipping.')
         elif not os.path.isfile(os.path.splitext(f)[0] + 'm.gif'):
-            raise ValueError('Mask not found. Skipping.')
+            raise ValueError('Mask not found for ' + basename + '. Skipping.')
     elif should_separe and not os.path.isfile(os.path.splitext(f)[0] + '.cfg'):
-        raise ValueError('.cfg file not found. Skipping.')
+        raise ValueError('.cfg file not found for ' + basename + '. Skipping.')
     elif match != None and re.match(match, os.path.basename(f)) == None:
-        raise ValueError('The name of the image didn\'t match the input name. Skipping.')
+        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
     return 
-
-#this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
-def get_images(dirs, include_gifs, include_subdirs, match, should_separe):
-    img_list = []
-    for d in dirs:
-        dir_list = []
-        if d != '.': print('Searching for images in ' + d + '...')
-        else: print('Searching for images in current directory...')
-
-        for f in sorted(os.listdir(d)):
-            if f.endswith('png') or include_gifs and f.endswith('gif'):
-                print("Found image: " + f)
-                img = Image.open(d + '/' + f)
-                try:
-                    check_image(img.filename, match, should_separe)
-                except ValueError as e:
-                    print(e)
-                    continue
-                img_list.append(img)
-            elif os.path.isdir(d + '/' + f):
-                dir_list.append(d + '/' + f)
-
-        #use recursion to search in subdirectories
-        if include_subdirs and len(dirList) != 0:
-            img_list += get_images(dirList, include_gifs, include_subdirs, match, should_separe)
-
-    return img_list
 
 #this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
 def get_save_dir(odir, img):
@@ -140,6 +114,32 @@ def get_pal_image(palette_set):
         y += 1
     return (img, w, h)
 
+#this function parses the cfg file of an image. it takes the filename (complete path) of the cfg file and returns all the lines as a string and real width, height and space of the image the cfg file is associated to. note that 'realw' and 'realh' stand for the image's width and height WITHOUT the palette.
+def parse_cfg(filename):
+    with open(filename) as cfg:
+        lines = cfg.read().splitlines()
+        w, h, space = lines[-1].rstrip('\n').split('|')
+        lines.remove(lines[-1])
+        return (lines, int(w), int(h), int(space))
+
+#this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
+def get_images(d, include_gifs, include_subdirs):
+    img_list = []
+
+    if d != '.': 
+        print('Searching for images in ' + d + '...')
+    else: 
+        print('Searching for images in current directory...')
+
+    for f in sorted(os.listdir(d)):
+        if f.endswith('png') or include_gifs and f.endswith('gif'):
+            print("Found image: " + f)
+            img_list.append(Image.open(d + '/' + f))
+        elif os.path.isdir(d + '/' + f):
+            img_list += get_images(d + '/' + f, include_gifs, include_subdirs)
+
+    return img_list
+
 #this function pastes a list of images into an image, using the old method (pasting them horizontally) and with optional space. it assumes the image is big enough and every image in the list is a png. Returns the new image.
 def join_images(newimg, img_list, space, palh):
     maxw, maxh = newimg.size
@@ -154,13 +154,22 @@ def join_images(newimg, img_list, space, palh):
         x += w + space
     return newimg
 
-#this function parses the cfg file of an image. it takes the filename (complete path) of the cfg file and returns all the lines as a string and real width, height and space of the image the cfg file is associated to. note that 'realw' and 'realh' stand for the image's width and height WITHOUT the palette.
-def parse_cfg(filename):
-    with open(filename) as cfg:
-        lines = cfg.read().splitlines()
-        w, h, space = lines[-1].rstrip('\n').split('|')
-        lines.remove(lines[-1])
-        return (lines, int(w), int(h), int(space))
+def join_spritesheet(newimg, img_list, space, spW, spH, imW, imH):
+    maxw, maxh = newimg.size
+    draw = ImageDraw.Draw(newimg)
+    x, y, index = 0, 0, 0
+    for img in img_list:
+        print('Pasting ' + os.path.basename(img_list[index].filename))
+        w, h = img.size
+        draw.rectangle([(x, y), (x + imW, y + imH)], (0, 0, 0, 0))          
+        newimg.paste(img, (x, y))
+        index += 1
+        if x == imW * spW + space * (imW - 1):
+            x = 0
+            y += space + imH
+        else:
+            x += space + imW
+    return newimg
 
 #this function takes an image and crops the image contained in it. it looks into its .cfg file for specifications. new images are automatically saved into the outpit directory.
 def separe_image(img, odir, res_num):
@@ -189,6 +198,7 @@ def save_images(img, odir):
 
 def real_main():
     args = get_args()
+    print(args)
     #error checking with arguments ahead
     args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
     if args.join == 'spritesheet' or args.separe == 'spritesheet':
@@ -198,7 +208,9 @@ def real_main():
         check_spritesheet_arg(args.image_height, '--image-height')
 
     #get the images
-    image_list = get_images(args.input_dir, args.convert_gifs, args.include_subdirs, args.input_name, args.separe)
+    image_list = []
+    for d in args.input_dir:
+        image_list += get_images(d, args.convert_gifs, args.include_subdirs)
     if len(image_list) == 0:
         raise ValueError("ERROR: No image found in any directory.")
     
@@ -210,6 +222,14 @@ def real_main():
     new_image_list = [] 
     for img in image_list:
         w, h = img.size
+        try:
+            check_image(img.filename, args.input_name, args.separe)
+            if args.join == 'spritesheet':
+                if w != args.image_width or h != args.image_height:
+                    raise ValueError('The image doesn\'t have the right width.')
+        except ValueError as e:
+            print(e)
+            continue
         w = int(w * res_num)
         h = int(h * res_num)
         f = img.filename
@@ -227,6 +247,9 @@ def real_main():
         img.filename = f
         new_image_list.append(img)
 
+    if len(new_image_list) == 0:
+        raise ValueError("ERROR: No image remaining.")
+
     #get the palette image, then check if it should save it.
     pal_image, palw, palh = get_pal_image(palette_set)
     if args.separe_palette:
@@ -239,17 +262,28 @@ def real_main():
         maxh += palh
 
     if args.join:
+        #output_dir related
         if args.output_dir == 'same' and len(args.input_dir) != 1:
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
         save_dir = get_save_dir(args.output_dir, new_image_list[0])
+        #cfg file related
         with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
             image_data.write(image_configs + str(maxw) + '|' + str(maxh - palh) + '|' + str(args.space))
+            if args.join == 'spritesheet':
+                image_data.write('\n' + str(args.spritesheet_width) + '|' + str(args.spritesheet_height) + '|' + str(args.image_width) + '|' + str(args.image_height))
+        #creating the new image
+        new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
         print('Creating new image: width = ' + str(maxw) + '; height = ' + str(maxh))
-        new_image = join_images(Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA"), new_image_list, args.space, palh)
+        if args.join == 'images':
+            new_image = join_images(new_image, new_image_list, args.space, palh)
+        else:
+            new_image = join_spritesheet(new_image, new_image_list, args.space, args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height)
+        #palette related
         if not args.separe_palette:
             print('Pasting palette')
             ImageDraw.Draw(new_image).rectangle([(0, maxh - palh), (0 + palw-1, maxh + palh-1)], (0, 0, 0, 0))
             new_image.paste(pal_image, (0, maxh - palh))
+        #save image
         print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
         new_image.save(save_dir + '/' + args.output_name + '.png')
     elif args.separe:
