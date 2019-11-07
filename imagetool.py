@@ -61,20 +61,6 @@ def check_spritesheet_arg(arg, argname):
     if arg == None or arg <= 0:
         raise ValueError('ERROR: Bad argument given to ' + argname + '.')
 
-#this function performs various checks on an image. they are done when getting the images.
-def check_image(f, match, should_separe):
-    basename = os.path.basename(f)
-    if f.endswith('gif'):
-        if f[-5:] == 'm.gif':
-            raise ValueError(basename + ' is a gif mask image. Skipping.')
-        elif not os.path.isfile(os.path.splitext(f)[0] + 'm.gif'):
-            raise ValueError('Mask not found for ' + basename + '. Skipping.')
-    elif should_separe and not os.path.isfile(os.path.splitext(f)[0] + '.cfg'):
-        raise ValueError('.cfg file not found for ' + basename + '. Skipping.')
-    elif match != None and re.match(match, os.path.basename(f)) == None:
-        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
-    return 
-
 #this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
 def get_save_dir(odir, img):
     if odir == 'same':
@@ -112,7 +98,18 @@ def get_pal_image(palette_set):
             x += 1
         x = 0
         y += 1
-    return (img, w, h)
+    return img
+
+def paste_palette(img, img_pal):
+    imw, imh = img.size
+    palw, palh = img_pal.size
+    if palw > imw:
+        imw = palw
+    img_with_pal = Image.new('RGBA', (imw, imh + palh), (0, 0, 0, 0)).convert("RGBA")
+    img_with_pal.paste(img, (0, 0))
+    img_with_pal.paste(img_pal, (0, imh))
+
+    return img_with_pal
 
 #this function parses the cfg file of an image. it takes the filename (complete path) of the cfg file and returns all the lines as a string and real width, height and space of the image the cfg file is associated to. note that 'realw' and 'realh' stand for the image's width and height WITHOUT the palette.
 def parse_cfg(filename):
@@ -121,6 +118,40 @@ def parse_cfg(filename):
         w, h, space = lines[-1].rstrip('\n').split('|')
         lines.remove(lines[-1])
         return (lines, int(w), int(h), int(space))
+
+#this function performs various checks on an image. they are done when getting the images.
+def check_image(im, should_join, should_separe, imw, imh, match):
+    basename = os.path.basename(im.filename)
+    w, h = im.size
+    if im.filename.endswith('gif'):
+        if im.filename[-5:] == 'm.gif':
+            raise ValueError(basename + ' is a gif mask image. Skipping.')
+        elif not os.path.isfile(os.path.splitext(im.filename)[0] + 'm.gif'):
+            raise FileNotFoundError('Mask not found for ' + basename + '. Skipping.')
+    elif should_separe and not os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg'):
+        raise FileNotFoundError('.cfg file not found for ' + basename + '. Skipping.')
+    elif match != None and re.match(match, basename) == None:
+        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
+    elif should_join == 'spritesheet' and (w != imw or h != imh):
+        raise ValueError(basename + ': The image doesn\'t have the right width or height.')
+    return 
+
+#this function performs various checks on an image. they are done when getting the images.
+def check_image(im, should_join, should_separe, imw, imh, match):
+    basename = os.path.basename(im.filename)
+    w, h = im.size
+    if im.filename.endswith('gif'):
+        if im.filename[-5:] == 'm.gif':
+            raise ValueError(basename + ' is a gif mask image. Skipping.')
+        elif not os.path.isfile(os.path.splitext(im.filename)[0] + 'm.gif'):
+            raise FileNotFoundError('Mask not found for ' + basename + '. Skipping.')
+    elif should_separe and not os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg'):
+        raise FileNotFoundError('.cfg file not found for ' + basename + '. Skipping.')
+    elif match != None and re.match(match, basename) == None:
+        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
+    elif should_join == 'spritesheet' and (w != imw or h != imh):
+        raise ValueError(basename + ': The image doesn\'t have the right width or height.')
+    return 
 
 #this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
 def get_images(d, include_gifs, include_subdirs):
@@ -141,35 +172,44 @@ def get_images(d, include_gifs, include_subdirs):
     return img_list
 
 #this function pastes a list of images into an image, using the old method (pasting them horizontally) and with optional space. it assumes the image is big enough and every image in the list is a png. Returns the new image.
-def join_images(newimg, img_list, space, palh):
-    maxw, maxh = newimg.size
-    draw = ImageDraw.Draw(newimg)
+def join_images(img_list, space, maxw, maxh):
+    print('Creating new image: width = ' + str(maxw) + '; height = ' + str(maxh))
+    new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
+    draw = ImageDraw.Draw(new_image)
     x = 0
     for img in img_list:
         print('Pasting ' + os.path.basename(img.filename))
         w, h = img.size
-        diff = int((maxh - palh - h) / 2)
+        diff = int((maxh - h) / 2)
         draw.rectangle([(x, diff), (x + w-1, diff + h-1)], (0, 0, 0, 0))          
-        newimg.paste(img, (x, diff))
+        new_image.paste(img, (x, diff))
         x += w + space
-    return newimg
+    return new_image
 
-def join_spritesheet(newimg, img_list, space, spW, spH, imW, imH):
-    maxw, maxh = newimg.size
-    draw = ImageDraw.Draw(newimg)
-    x, y, index = 0, 0, 0
+def join_spritesheet(img_list, space, sp_width, sp_height, im_width, im_height):
+    maxw = sp_width * im_width + space * (im_width - 1)
+    maxh = sp_height * im_height + space * (im_height - 1)
+
+    print('Creating new spritesheet: width = ' + str(maxw) + '; height = ' + str(maxh))
+    new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
+
+    draw = ImageDraw.Draw(new_image)
+    x, y = 0, 0
     for img in img_list:
-        print('Pasting ' + os.path.basename(img_list[index].filename))
+        print('Pasting ' + os.path.basename(img.filename))
         w, h = img.size
-        draw.rectangle([(x, y), (x + imW, y + imH)], (0, 0, 0, 0))          
-        newimg.paste(img, (x, y))
-        index += 1
-        if x == imW * spW + space * (imW - 1):
-            x = 0
-            y += space + imH
+        draw.rectangle([(x, y), (x + im_width, y + im_height)], (0, 0, 0, 0))          
+        new_image.paste(img, (x, y))
+        if x >= maxw:
+            if y >= maxh:
+                print('Some images might not have been pasted.')
+                break
+            else:
+                x = 0
+                y += space + im_height
         else:
-            x += space + imW
-    return newimg
+            x += space + im_width
+    return new_image
 
 #this function takes an image and crops the image contained in it. it looks into its .cfg file for specifications. new images are automatically saved into the outpit directory.
 def separe_image(img, odir, res_num):
@@ -221,71 +261,66 @@ def real_main():
     res_num = float(args.resize / 100) 
     new_image_list = [] 
     for img in image_list:
-        w, h = img.size
         try:
-            check_image(img.filename, args.input_name, args.separe)
-            if args.join == 'spritesheet':
-                if w != args.image_width or h != args.image_height:
-                    raise ValueError('The image doesn\'t have the right width.')
-        except ValueError as e:
+            check_image(img, args.join, args.separe, args.image_width, args.image_height, args.input_name)
+        except Exception as e:
             print(e)
             continue
+        w, h = img.size
         w = int(w * res_num)
         h = int(h * res_num)
         f = img.filename
         image_configs += os.path.basename(img.filename) + '|' + str(w) + '|' + str(h) + '\n'
         if img.filename.endswith('.gif'):
-            gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+            img = gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+
         img = img.resize((w, h), Image.NEAREST)
-        if h > maxh:
-            maxh = h
-        maxw += w + args.space
-        pal = get_pal(img)
-        palette_set.add(frozenset(pal))
 
         #copy the resulting image to a new list and add its filename.
         img.filename = f
         new_image_list.append(img)
+        
+        #only get palette, maxw and maxh when joining
+        if args.join:
+            if h > maxh:
+                maxh = h
+            maxw += w + args.space
+
+            palette_set.add(frozenset(get_pal(img)))
 
     if len(new_image_list) == 0:
         raise ValueError("ERROR: No image remaining.")
-
-    #get the palette image, then check if it should save it.
-    pal_image, palw, palh = get_pal_image(palette_set)
-    if args.separe_palette:
-        save_dir = get_save_dir(args.output_dir, new_image_list[0])
-        print('Saving palette image in ' + save_dir)
-        pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
-    else:
-        if maxw < palw: 
-            maxw = palw
-        maxh += palh
 
     if args.join:
         #output_dir related
         if args.output_dir == 'same' and len(args.input_dir) != 1:
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
         save_dir = get_save_dir(args.output_dir, new_image_list[0])
+
         #cfg file related
         with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
-            image_data.write(image_configs + str(maxw) + '|' + str(maxh - palh) + '|' + str(args.space))
+            image_data.write(image_configs + str(maxw) + '|' + str(maxh) + '|' + str(args.space))
             if args.join == 'spritesheet':
                 image_data.write('\n' + str(args.spritesheet_width) + '|' + str(args.spritesheet_height) + '|' + str(args.image_width) + '|' + str(args.image_height))
-        #creating the new image
-        new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
-        print('Creating new image: width = ' + str(maxw) + '; height = ' + str(maxh))
+
+        #actual joining here
         if args.join == 'images':
-            new_image = join_images(new_image, new_image_list, args.space, palh)
+            new_image = join_images(new_image_list, args.space, maxw, maxh)
         else:
-            new_image = join_spritesheet(new_image, new_image_list, args.space, args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height)
-        #palette related
-        if not args.separe_palette:
+            new_image = join_spritesheet(new_image_list, args.space, args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height)
+
+        pal_image = get_pal_image(palette_set)
+        if args.separe_palette:
+            print('Saving palette image in ' + save_dir)
+            pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
+        else:
             print('Pasting palette')
-            ImageDraw.Draw(new_image).rectangle([(0, maxh - palh), (0 + palw-1, maxh + palh-1)], (0, 0, 0, 0))
-            new_image.paste(pal_image, (0, maxh - palh))
+            new_image = paste_palette(new_image, pal_image)
+
         #save image
         print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
         new_image.save(save_dir + '/' + args.output_name + '.png')
+
     elif args.separe:
         for img in new_image_list:
             separe_image(img, args.output_dir, res_num)
