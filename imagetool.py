@@ -136,39 +136,16 @@ def check_image(im, should_join, should_separe, imw, imh, match):
         raise ValueError(basename + ': The image doesn\'t have the right width or height.')
     return 
 
-#this function performs various checks on an image. they are done when getting the images.
-def check_image(im, should_join, should_separe, imw, imh, match):
-    basename = os.path.basename(im.filename)
-    w, h = im.size
-    if im.filename.endswith('gif'):
-        if im.filename[-5:] == 'm.gif':
-            raise ValueError(basename + ' is a gif mask image. Skipping.')
-        elif not os.path.isfile(os.path.splitext(im.filename)[0] + 'm.gif'):
-            raise FileNotFoundError('Mask not found for ' + basename + '. Skipping.')
-    elif should_separe and not os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg'):
-        raise FileNotFoundError('.cfg file not found for ' + basename + '. Skipping.')
-    elif match != None and re.match(match, basename) == None:
-        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
-    elif should_join == 'spritesheet' and (w != imw or h != imh):
-        raise ValueError(basename + ': The image doesn\'t have the right width or height.')
-    return 
-
 #this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
 def get_images(d, include_gifs, include_subdirs):
     img_list = []
-
-    if d != '.': 
-        print('Searching for images in ' + d + '...')
-    else: 
-        print('Searching for images in current directory...')
-
+    print('Searching for images in ' + os.path.abspath(d) + '...')
     for f in sorted(os.listdir(d)):
         if f.endswith('png') or include_gifs and f.endswith('gif'):
             print("Found image: " + f)
             img_list.append(Image.open(d + '/' + f))
         elif os.path.isdir(d + '/' + f):
             img_list += get_images(d + '/' + f, include_gifs, include_subdirs)
-
     return img_list
 
 #this function pastes a list of images into an image, using the old method (pasting them horizontally) and with optional space. it assumes the image is big enough and every image in the list is a png. Returns the new image.
@@ -186,9 +163,11 @@ def join_images(img_list, space, maxw, maxh):
         x += w + space
     return new_image
 
+#this function joins images in a spritesheet. takes an image list, a space argument and each spritesheet argument. it won't try to figure out by itself how to lay out the images, instead it uses the spritesheet arguments for this job. this means there might be not enough space for every images.
+#the function returns an image with each image from the list pasted in it.
 def join_spritesheet(img_list, space, sp_width, sp_height, im_width, im_height):
-    maxw = sp_width * im_width + space * (im_width - 1)
-    maxh = sp_height * im_height + space * (im_height - 1)
+    maxw = sp_width * im_width + space * (sp_width - 1)
+    maxh = sp_height * im_height + space * (sp_height - 1)
 
     print('Creating new spritesheet: width = ' + str(maxw) + '; height = ' + str(maxh))
     new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
@@ -200,35 +179,40 @@ def join_spritesheet(img_list, space, sp_width, sp_height, im_width, im_height):
         w, h = img.size
         draw.rectangle([(x, y), (x + im_width, y + im_height)], (0, 0, 0, 0))          
         new_image.paste(img, (x, y))
-        if x >= maxw:
-            if y >= maxh:
-                print('Some images might not have been pasted.')
-                break
-            else:
-                x = 0
-                y += space + im_height
+        if y >= maxh:
+            print('Some images might not have been pasted.')
+            break
+        elif x >= maxw:
+            x = 0
+            y += space + im_height
         else:
             x += space + im_width
     return new_image
 
 #this function takes an image and crops the image contained in it. it looks into its .cfg file for specifications. new images are automatically saved into the outpit directory.
-def separe_image(img, odir, res_num):
-    print('Separing image: ' + os.path.basename(img.filename))
-    lines, realw, realh, space = parse_cfg(os.path.splitext(img.filename)[0] + '.cfg')
-    realw = int(realw * res_num)
-    realh = int(realh * res_num)
-    save_dir = get_save_dir(odir, img)
+def separe_image(img, odir, res_num, lines, space, maxh):
     x = 0
     for line in lines:
-        line = line.rstrip('\n')
-        filename, w, h = line.split('|')
-        w, h = int(w), int(h)
-        w = int(w * res_num)
-        h = int(h * res_num)
+        filename, w, h = line.rstrip('\n').split('|')
+        w, h = int(float(w)*res_num), int(float(h)*res_num)
         print('Cropping image: ' + filename + ', width: ' + str(w) + ', height: ' + str(h) + '; saving to: ' + odir)
-        diff = (realh - h) / 2
+        diff = (maxh - h) / 2
         img.crop((x, diff, x + w, diff + h)).save(odir + '/' + filename)
         x += w + space
+
+#this function separes a spritesheet. takes on input the image (assuming it's a spritesheet) and a resizing number and returns a list with every image separated. this version uses a cfg file.
+def separe_spritesheet(img, odir, res_num, lines, space, maxw):
+    x, y = 0, 0
+    for line in lines:
+        filename, w, h = line.rstrip('\n').split('|')
+        w, h = int(float(w)*res_num), int(float(h)*res_num)
+        print('Cropping image: ' + filename + ', width: ' + str(w) + ', height: ' + str(h) + '; saving to: ' + odir)
+        img.crop((x, y, x + w, y + h)).save(odir + '/' + filename)
+        if x >= maxw:
+            x = 0
+            y += space + h
+        else:
+            x += space + w
 
 #this function will simply save the images in the output directory.
 def save_images(img, odir):
@@ -238,7 +222,6 @@ def save_images(img, odir):
 
 def real_main():
     args = get_args()
-    print(args)
     #error checking with arguments ahead
     args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
     if args.join == 'spritesheet' or args.separe == 'spritesheet':
@@ -297,13 +280,9 @@ def real_main():
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
         save_dir = get_save_dir(args.output_dir, new_image_list[0])
 
-        #cfg file related
         with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
             image_data.write(image_configs + str(maxw) + '|' + str(maxh) + '|' + str(args.space))
-            if args.join == 'spritesheet':
-                image_data.write('\n' + str(args.spritesheet_width) + '|' + str(args.spritesheet_height) + '|' + str(args.image_width) + '|' + str(args.image_height))
 
-        #actual joining here
         if args.join == 'images':
             new_image = join_images(new_image_list, args.space, maxw, maxh)
         else:
@@ -323,7 +302,16 @@ def real_main():
 
     elif args.separe:
         for img in new_image_list:
-            separe_image(img, args.output_dir, res_num)
+            save_dir = get_save_dir(args.output_dir, img)
+            print('Separing image: ' + os.path.basename(img.filename))
+#            try:
+            lines, maxw, maxh, space = parse_cfg(os.path.splitext(img.filename)[0] + '.cfg')
+            if args.separe == 'images':
+                separe_image(img, save_dir, res_num, lines, space, int(maxh))
+            else:
+                separe_spritesheet(img, save_dir, res_num, lines, space, int(maxw))
+#            except ValueError as e:
+#                print('ERROR: Cannot parse the cfg file correctly.')
     elif args.skip:
         for img in new_image_list:
             save_images(img, args.output_dir)
@@ -335,8 +323,8 @@ def main():
         real_main()
     except FileNotFoundError as error:
         print(error)
-    except ValueError as error:
-        print(error)
+#    except ValueError as error:
+#        print(error)
     except re.error:
         print('ERROR: --input-name not a valid REGEX.')
     except KeyboardInterrupt:
