@@ -1,4 +1,4 @@
-# Super Mario Bros X Image Tool
+# SMBX Image Tool
 
 This is a simple tool made to handle various tasks involving images. The principal task is to join images toghether in a single image, for easy recoloring, and splitting them afterwards. It can also resize images (to do) and import/export spritesheets (to do).
 
