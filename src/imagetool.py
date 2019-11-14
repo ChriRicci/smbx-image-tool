@@ -17,8 +17,8 @@ def get_args():
     parser.add_argument('-s', '--separe', choices=['images', 'spritesheet'], help='Separates the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the image found in the program\'s directory (if it finds it).')
     parser.add_argument('--skip', '--no-join-or-separe', action='store_true', help='Don\'t join pr separe, instead simply save the images to output directory. This can be used for debugging purposes, or to just do single actions like resizing the images or extracting their palettes.')
     #directory arguments
-    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=['./edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
-    parser.add_argument('-odir', '--output-dir', metavar='DIR', default='./output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
+    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[sys.path[0] + '/edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
+    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=sys.path[0] + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
     parser.add_argument('-in', '--input-name', metavar='', help='If given, when joining or separing the tool will search for filenames matching this name.')
     parser.add_argument('-on', '--output-name', metavar='', default='joinedImages', help='If given, the tool will rename any output images by this name, followed by numbers if there is more than one image. The default is \'joinedImages\'') 
     #spritesheet arguments
@@ -61,11 +61,7 @@ def check_spritesheet_arg(arg, argname):
 
 #this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
 def get_save_dir(odir, img):
-    if odir == 'same':
-        save_dir = os.path.dirname(img.filename)
-    else:
-        save_dir = odir
-    return save_dir
+    return odir if odir != 'same' else os.path.dirname(img.filename)
 
 def real_main():
     args = get_args()
@@ -140,7 +136,7 @@ def real_main():
         else:
             print('Pasting palette')
             new_image = palette.paste_palette(new_image, pal_image)
-        #save image
+
         print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
         new_image.save(save_dir + '/' + args.output_name + '.png')
 

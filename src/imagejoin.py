@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 import os
 
-def get_max_lenght(spritesheet_lenght, space, image_lenght):
+def get_max_lenght(spritesheet_lenght, image_lenght, space):
     return image_lenght * spritesheet_lenght + space * (spritesheet_lenght - 1)
 
 #this function pastes a list of images into an image, using the old method (pasting them horizontally) and with optional space. it assumes the image is big enough and every image in the list is a png. Returns the new image.
@@ -22,8 +22,7 @@ def join_images(img_list, space, maxw, maxh):
 #this function joins images in a spritesheet. takes an image list, a space argument and each spritesheet argument. it won't try to figure out by itself how to lay out the images, instead it uses the spritesheet arguments for this job. this means there might be not enough space for every images.
 #the function returns an image with each image from the list pasted in it.
 def join_spritesheet(img_list, space, sp_width, sp_height, im_width, im_height):
-    maxw = sp_width * im_width + space * (sp_width - 1)
-    maxh = sp_height * im_height + space * (sp_height - 1)
+    maxw, maxh = get_max_lenght(sp_width, im_width, space), get_max_lenght(sp_height, im_height, space)
 
     print('Creating new spritesheet: width = ' + str(maxw) + '; height = ' + str(maxh))
     new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
