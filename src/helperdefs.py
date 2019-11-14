@@ -5,13 +5,13 @@ def gif_to_png(image, imagemask):
     #TODO
     print('converting ' + image.filename + ' with mask ' + imagemask.filename)
 
-#this function parses the cfg file of an image. it takes the filename (complete path) of the cfg file and returns all the lines as a string and real width, height and space of the image the cfg file is associated to. note that 'realw' and 'realh' stand for the image's width and height WITHOUT the palette.
+#this function parses the cfg file of an image. it takes the filename of the cfg file and returns all the lines related to the images contained in it, plus width, height and space of the joined image (converted to int)
 def parse_cfg(filename):
     with open(filename) as cfg:
         lines = cfg.read().splitlines()
-        w, h, space, spw = lines[-1].rstrip('\n').split('|')
+        w, h, space = lines[-1].rstrip('\n').split('|')
         lines.remove(lines[-1])
-        return (lines, int(w), int(h), int(space), int(spw))
+        return (lines, int(w), int(h), int(space))
 
 #this function performs various checks on an image. they are done when getting the images.
 def check_image(im, should_join, should_separe, imw, imh, match):

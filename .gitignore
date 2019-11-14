@@ -1,1 +1,4 @@
 *.swp
+src/__pycache__
+src/output/*
+

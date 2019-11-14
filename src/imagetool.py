@@ -3,9 +3,9 @@ import os
 import sys
 import argparse
 import collections
-import helperDefs
+import helperdefs
 import palette
-import imageJoin
+import imagejoin
 
 #this function simply returns all the arguments. i made this to separe the argument stuff from the main.
 def get_args():
@@ -67,6 +67,8 @@ def real_main():
     args = get_args()
     #error checking with arguments ahead
     args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
+    if args.join and args.output_dir == 'same' and len(args.input_dir) != 1:
+        raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
     if args.join == 'spritesheet' or args.separe == 'spritesheet':
         check_spritesheet_arg(args.spritesheet_width, '--spritesheet-width')
         check_spritesheet_arg(args.spritesheet_height, '--spritesheet-height')
@@ -76,67 +78,74 @@ def real_main():
     #get the images
     image_list = []
     for d in args.input_dir:
-        image_list += helperDefs.get_images(d, args.convert_gifs, args.include_subdirs)
+        image_list += helperdefs.get_images(d, args.convert_gifs, args.include_subdirs)
     if len(image_list) == 0:
         raise ValueError("ERROR: No image found in any directory.")
-    
+
+    image_configs = ''                 #string that contains name, width and height for all images  (used in joining)
+    max_width, max_height = 0, 0       #max width and height for all the images                     (used in joining)
+    palette_set = set()                #palette for all the images                                  (used in joining)
+    res_num = float(args.resize / 100) #calculates resizing                                         (used everywhere)
+    new_image_list = []                #keeps a list of the images after the operations             (used everywhere)
+
     #check if the image is valid, then do common operations (get config, resize, get max width and height and get palette)
-    image_configs = '' 
-    maxw, maxh = 0, 0
-    palette_set = set()
-    res_num = float(args.resize / 100) 
-    new_image_list = [] 
     for img in image_list:
         try:
-            helperDefs.check_image(img, args.join, args.separe, args.image_width, args.image_height, args.input_name)
+            helperdefs.check_image(img, args.join, args.separe, args.image_width, args.image_height, args.input_name)
         except Exception as e:
             print(e)
             continue
         w, h = img.size
-        w = int(w * res_num)
-        h = int(h * res_num)
+        w, h = int(w * res_num), int(h * res_num);
         f = img.filename
         image_configs += os.path.basename(img.filename) + '|' + str(w) + '|' + str(h) + '\n'
         if img.filename.endswith('.gif'):
-            img = helperFunctions.helperDefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
-
+            img = helperFunctions.helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
         img = img.resize((w, h), Image.NEAREST)
 
-        #copy the resulting image to a new list and add its filename.
-        img.filename = f
+        #copy the resulting image to a new list
+        img.filename = f #preserve filename
         new_image_list.append(img)
         
-        #only get palette, maxw and maxh when joining
-        if args.join:
-            if h > maxh:
-                maxh = h
-            maxw += w + args.space
-            palette_set.add(frozenset(palette.get_palette(img)))
+        palette_set.add(frozenset(palette.get_palette(img)))
+
+        #only get max_width and max_height when joining
+        if not args.join == 'images': 
+            continue 
+        if h > max_height:
+            max_height = h
+        max_width += w + args.space
 
     if len(new_image_list) == 0:
         raise ValueError("ERROR: No image remaining.")
 
+    pal_image = palette.get_pal_image(palette_set)
+    if args.separe_palette:
+        print('Saving palette image in ' + save_dir)
+        pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
+
+    #branching for different options
     if args.join:
-        if args.output_dir == 'same' and len(args.input_dir) != 1:
-            raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
         save_dir = get_save_dir(args.output_dir, new_image_list[0])
 
-        with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
-            image_data.write(image_configs + str(maxw) + '|' + str(maxh) + '|' + str(args.space) + '|' + str(args.spritesheet_width))
-
+        #join the images
         if args.join == 'images':
-            new_image = imageJoin.join_images(new_image_list, args.space, maxw, maxh)
+            new_image = imagejoin.join_images(new_image_list, args.space, max_width, max_height)
         else:
-            new_image = imageJoin.join_spritesheet(new_image_list, args.space, args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height)
-
-        pal_image = palette.get_pal_image(palette_set)
-        if args.separe_palette:
-            print('Saving palette image in ' + save_dir)
-            pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
-        else:
+            max_width = imagejoin.get_max_lenght(args.spritesheet_width, args.image_width, args.space)
+            max_height = imagejoin.get_max_lenght(args.spritesheet_height, args.image_height, args.space)
+            new_image = imagejoin.join_spritesheet(new_image_list, args.space, max_width, max_height)
+        
+        #paste the palette
+        if not args.separe_palette:
             print('Pasting palette')
             new_image = palette.paste_palette(new_image, pal_image)
-
+        
+        #Write to the cfg file.
+        with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
+            image_data.write(image_configs + str(max_width) + '|' + str(max_height) + '|' + str(args.space))
+        
+        #save the joined image
         print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
         new_image.save(save_dir + '/' + args.output_name + '.png')
 
@@ -144,17 +153,16 @@ def real_main():
         for img in new_image_list:
             save_dir = get_save_dir(args.output_dir, img)
             print('Separing image: ' + os.path.basename(img.filename))
-            try:
-                lines, maxw, maxh, space, spw = helperDefs.parse_cfg(os.path.splitext(img.filename)[0] + '.cfg')
-                if args.separe == 'images':
-                    imageJoin.separe_image(img, save_dir, res_num, lines, space, maxh)
-                else:
-                    imageJoin.separe_spritesheet(img, save_dir, res_num, lines, space, spw)
-            except ValueError as e:
-                print('ERROR: Cannot parse the cfg file correctly.')
+   #         try:
+            if args.separe == 'images':
+                imagejoin.separe_image(img, save_dir, res_num)
+            else:
+                imagejoin.separe_spritesheet(img, save_dir, res_num)
+   #         except ValueError as e:
+   #             print('ERROR: Cannot parse the cfg file correctly.')
     elif args.skip:
         save_dir = get_save_dir(args.output_dir, img)
         for img in new_image_list:
-            imageJoin.save_images(img, args.output_dir)
+            imagejoin.save_images(img, args.output_dir)
     else:
         raise ValueError('No action argument specified. Please specify one of the following:\n --join\n --separe\n --skip')
