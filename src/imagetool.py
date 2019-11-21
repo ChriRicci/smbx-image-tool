@@ -6,6 +6,7 @@ import collections
 import helperdefs
 import palette
 import imagejoin
+import re
 
 #this function simply returns all the arguments. i made this to separe the argument stuff from the main.
 def get_args():
@@ -43,7 +44,7 @@ def check_dirs(idir, odir):
     dirsToRemove = []
     for d in idir:
         if not os.path.isdir(d):
-            print('ERROR: ' + d + ' was not found. Please make sure it exists first.')
+            print('ERROR: ' + d + ' was not found. Please make sure it exists first. (The directory will be removed)')
             dirsToRemove.append(d)
     for d in dirsToRemove:
         idir.remove(d)
@@ -54,26 +55,19 @@ def check_dirs(idir, odir):
         print("Any directory not found will be skipped.\n")
     return (idir, odir)
 
-#this function simply checks if one of the arguments for spritesheets is valid.
-def check_spritesheet_arg(arg, argname):
-    if arg == None or arg <= 0:
-        raise ValueError('ERROR: Bad argument given to ' + argname + '.')
-
 #this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
 def get_save_dir(odir, img):
     return odir if odir != 'same' else os.path.dirname(img.filename)
 
 def real_main():
     args = get_args()
+
     #error checking with arguments ahead
     args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
     if args.join and args.output_dir == 'same' and len(args.input_dir) != 1:
         raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
-    if args.join == 'spritesheet' or args.separe == 'spritesheet':
-        check_spritesheet_arg(args.spritesheet_width, '--spritesheet-width')
-        check_spritesheet_arg(args.spritesheet_height, '--spritesheet-height')
-        check_spritesheet_arg(args.image_width, '--image-width')
-        check_spritesheet_arg(args.image_height, '--image-height')
+    if args.join == 'spritesheet' and not helperdefs.check_sp_args(args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height):
+        raise ValueError('ERROR: Can\'t join into a spritesheet without each one of the following:\n --spritesheet-width;\n --spritesheet-height;\n --image-width;\n --image-height')
 
     #get the images
     image_list = []
@@ -85,26 +79,41 @@ def real_main():
     image_configs = ''                 #string that contains name, width and height for all images  (used in joining)
     max_width, max_height = 0, 0       #max width and height for all the images                     (used in joining)
     palette_set = set()                #palette for all the images                                  (used in joining)
-    res_num = float(args.resize / 100) #calculates resizing                                         (used everywhere)
+    resn = float(args.resize / 100) #calculates resizing                                         (used everywhere)
     new_image_list = []                #keeps a list of the images after the operations             (used everywhere)
 
-    #check if the image is valid, then do common operations (get config, resize, get max width and height and get palette)
     for img in image_list:
+        w, h = img.size
+        fn = img.filename
+
+        #filter images based on stuff
         try:
-            helperdefs.check_image(img, args.join, args.separe, args.image_width, args.image_height, args.input_name)
+            bn = os.path.basename(fn)
+            if fn.endswith('.gif'): #for gifs
+                if fn.endswith('m.gif'):
+                    raise ValueError(bn + ' is a gif mask image. Skipping.')
+                elif not helperdefs.has_mask(fn):
+                    raise FileNotFoundError('Mask not found for ' + bn + '. Skipping.')
+            elif args.input_name != None and re.match(args.input_name, os.path.basename(img.filename)): #output name
+                raise ValueError(bn + ': The name of the image didn\'t match the input name. Skipping.')
+            elif args.join and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
+                raise ValueError(bn + ': The image doesn\'t have the right width or height.')
+            elif args.separe == 'images' and not helperdefs.has_cfg(img): #separing checks
+                raise FileNotFoundError('.cfg file not found for ' + bn + '. Skipping.')
+            elif args.separe == 'spritesheet' and not helperdefs.can_separe_sp(img, args.image_width, args.image_height):
+                raise ValueError('.cfg file not found for ' + bn + ' and no spritesheet arguments were specified. Skipping.') 
         except Exception as e:
             print(e)
             continue
-        w, h = img.size
-        w, h = int(w * res_num), int(h * res_num);
-        f = img.filename
-        image_configs += os.path.basename(img.filename) + '|' + str(w) + '|' + str(h) + '\n'
+
         if img.filename.endswith('.gif'):
             img = helperFunctions.helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+        w, h = int(w * resn), int(h * resn);
+        image_configs += os.path.basename(img.filename) + '|' + str(w) + '|' + str(h) + '\n'
         img = img.resize((w, h), Image.NEAREST)
 
-        #copy the resulting image to a new list
-        img.filename = f #preserve filename
+        #copy the resulting image to a new list and preserve filename
+        img.filename = fn 
         new_image_list.append(img)
         
         palette_set.add(frozenset(palette.get_palette(img)))
@@ -132,8 +141,8 @@ def real_main():
         if args.join == 'images':
             new_image = imagejoin.join_images(new_image_list, args.space, max_width, max_height)
         else:
-            max_width = imagejoin.get_max_lenght(args.spritesheet_width, args.image_width, args.space)
-            max_height = imagejoin.get_max_lenght(args.spritesheet_height, args.image_height, args.space)
+            max_width = helperdefs.get_max_lenght(args.spritesheet_width, args.image_width, args.space)
+            max_height = helperdefs.get_max_lenght(args.spritesheet_height, args.image_height, args.space)
             new_image = imagejoin.join_spritesheet(new_image_list, args.space, max_width, max_height)
         
         #paste the palette
@@ -148,21 +157,22 @@ def real_main():
         #save the joined image
         print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
         new_image.save(save_dir + '/' + args.output_name + '.png')
-
     elif args.separe:
         for img in new_image_list:
             save_dir = get_save_dir(args.output_dir, img)
             print('Separing image: ' + os.path.basename(img.filename))
-   #         try:
-            if args.separe == 'images':
-                imagejoin.separe_image(img, save_dir, res_num)
-            else:
-                imagejoin.separe_spritesheet(img, save_dir, res_num)
-   #         except ValueError as e:
-   #             print('ERROR: Cannot parse the cfg file correctly.')
+            try:
+                if args.separe == 'images':
+                    imagejoin.separe_image(img, save_dir, resn)
+                elif helperdefs.has_cfg(img):
+                    imagejoin.separe_spritesheet_cfg(img, save_dir, resn)
+                else:
+                    imagejoin.separe_spritesheet(img, save_dir, resn, args.output_name, args.image_width, args.image_height, args.space)
+            except ValueError as e:
+                print('ERROR: Cannot parse the cfg file correctly.')
     elif args.skip:
         save_dir = get_save_dir(args.output_dir, img)
         for img in new_image_list:
-            imagejoin.save_images(img, args.output_dir)
+            imagejoin.save_image(img, args.output_dir)
     else:
         raise ValueError('No action argument specified. Please specify one of the following:\n --join\n --separe\n --skip')

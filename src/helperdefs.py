@@ -13,24 +13,21 @@ def parse_cfg(filename):
         lines.remove(lines[-1])
         return (lines, int(w), int(h), int(space))
 
-#this function performs various checks on an image. they are done when getting the images.
-def check_image(im, should_join, should_separe, imw, imh, match):
-    basename = os.path.basename(im.filename)
-    w, h = im.size
-    if im.filename.endswith('gif'):
-        if im.filename[-5:] == 'm.gif':
-            raise ValueError(basename + ' is a gif mask image. Skipping.')
-        elif not os.path.isfile(os.path.splitext(im.filename)[0] + 'm.gif'):
-            raise FileNotFoundError('Mask not found for ' + basename + '. Skipping.')
-    elif should_separe and not os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg'):
-        raise FileNotFoundError('.cfg file not found for ' + basename + '. Skipping.')
-    elif match != None and re.match(match, basename) == None:
-        raise ValueError(basename + ': The name of the image didn\'t match the input name. Skipping.')
-    elif should_join == 'spritesheet' and (w != imw or h != imh):
-        raise ValueError(basename + ': The image doesn\'t have the right width or height.')
-    return 
+def isposn(n): return n != None and n > 0
 
-#this function gets the images on which to operate and returns a list of images. it takes care of various options, like including gifs and filtering based on the input name. note that this ONLY GETS the images, it doesn't do anything else.
+def has_right_wh(w, h, imw, imh): return w == imw and h == imh
+
+def is_mask(im): return im.filename[-5:] == 'm.gif'
+
+def has_mask(f): return os.path.isfile(os.path.splitext(f)[0] + 'm.gif')
+
+def has_cfg(im): return os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg')
+
+def check_sp_args(spw, sph, imw, imh): return isposn(spw) and isposn(sph) and isposn(imw) and isposn(imh)
+
+def can_separe_sp(im, imw, imh): return has_cfg(im) or (isposn(imw) and isposn(imh))
+
+#this function gets the images on which to operate and returns a list of images. can search recursively as well.
 def get_images(d, include_gifs, include_subdirs):
     img_list = []
     print('Searching for images in ' + os.path.abspath(d) + '...')
@@ -41,3 +38,6 @@ def get_images(d, include_gifs, include_subdirs):
         elif os.path.isdir(d + '/' + f):
             img_list += get_images(d + '/' + f, include_gifs, include_subdirs)
     return img_list
+
+def get_max_lenght(spritesheet_lenght, image_lenght, space):
+    return image_lenght * spritesheet_lenght + space * (spritesheet_lenght - 1)
