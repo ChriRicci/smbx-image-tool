@@ -62,14 +62,9 @@ def get_save_dir(odir, img):
 def real_main():
     args = get_args()
 
-    #error checking with arguments ahead
+    #error checking for input dir and output dir
     args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
-    if args.join and args.output_dir == 'same' and len(args.input_dir) != 1:
-        raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
-    if args.join == 'spritesheet' and not helperdefs.check_sp_args(args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height):
-        raise ValueError('ERROR: Can\'t join into a spritesheet without each one of the following:\n --spritesheet-width;\n --spritesheet-height;\n --image-width;\n --image-height')
 
-    #get the images
     image_list = []
     for d in args.input_dir:
         image_list += helperdefs.get_images(d, args.convert_gifs, args.include_subdirs)
@@ -94,7 +89,7 @@ def real_main():
                     raise ValueError(bn + ' is a gif mask image. Skipping.')
                 elif not helperdefs.has_mask(fn):
                     raise FileNotFoundError('Mask not found for ' + bn + '. Skipping.')
-            elif args.input_name != None and re.match(args.input_name, os.path.basename(img.filename)): #output name
+            elif args.input_name != None and not re.match(args.input_name, os.path.basename(img.filename)): #output name
                 raise ValueError(bn + ': The name of the image didn\'t match the input name. Skipping.')
             elif args.join and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
                 raise ValueError(bn + ': The image doesn\'t have the right width or height.')
@@ -135,12 +130,17 @@ def real_main():
 
     #branching for different options
     if args.join:
+        #error checking for save dir
+        if args.output_dir == 'same' and len(args.input_dir) != 1:
+            raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
         save_dir = get_save_dir(args.output_dir, new_image_list[0])
 
         #join the images
         if args.join == 'images':
             new_image = imagejoin.join_images(new_image_list, args.space, max_width, max_height)
         else:
+            if not helperdefs.check_sp_args(args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height):
+                raise ValueError('ERROR: Can\'t join into a spritesheet without each one of the following:\n --spritesheet-width;\n --spritesheet-height;\n --image-width;\n --image-height')
             max_width = helperdefs.get_max_lenght(args.spritesheet_width, args.image_width, args.space)
             max_height = helperdefs.get_max_lenght(args.spritesheet_height, args.image_height, args.space)
             new_image = imagejoin.join_spritesheet(new_image_list, args.space, max_width, max_height)
@@ -151,12 +151,11 @@ def real_main():
             new_image = palette.paste_palette(new_image, pal_image)
         
         #Write to the cfg file.
-        with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data:
+        with open(save_dir + '/' + helperdefs.get_filename(args.output_name + '.cfg', save_dir), 'w') as image_data:
             image_data.write(image_configs + str(max_width) + '|' + str(max_height) + '|' + str(args.space))
         
         #save the joined image
-        print('Saving image: ' + args.output_name + '; destination: ' + save_dir)
-        new_image.save(save_dir + '/' + args.output_name + '.png')
+        imagejoin.save_image(new_image, args.output_name + '.png', save_dir)
     elif args.separe:
         for img in new_image_list:
             save_dir = get_save_dir(args.output_dir, img)
@@ -173,6 +172,6 @@ def real_main():
     elif args.skip:
         save_dir = get_save_dir(args.output_dir, img)
         for img in new_image_list:
-            imagejoin.save_image(img, args.output_dir)
+            imagejoin.save_image(img, os.path.basename(img.filename), args.output_dir)
     else:
-        raise ValueError('No action argument specified. Please specify one of the following:\n --join\n --separe\n --skip')
+        raise ValueError('ERROR: No action argument specified. Please specify one of the following:\n --join\n --separe\n --skip')

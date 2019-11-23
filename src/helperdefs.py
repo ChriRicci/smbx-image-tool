@@ -2,8 +2,8 @@ from PIL import Image, ImageDraw
 import os
 
 def gif_to_png(image, imagemask):
-    #TODO
-    print('converting ' + image.filename + ' with mask ' + imagemask.filename)
+    
+
 
 #this function parses the cfg file of an image. it takes the filename of the cfg file and returns all the lines related to the images contained in it, plus width, height and space of the joined image (converted to int)
 def parse_cfg(filename):
@@ -41,3 +41,13 @@ def get_images(d, include_gifs, include_subdirs):
 
 def get_max_lenght(spritesheet_lenght, image_lenght, space):
     return image_lenght * spritesheet_lenght + space * (spritesheet_lenght - 1)
+
+#edits a filename until it is unique in the directory it should be in.
+def get_filename(f, d):
+    num = 2
+    newf = f
+    while os.path.isfile(d + '/' + newf):
+        bn, ext = os.path.splitext(f)
+        newf = bn + ' (' + str(num) + ')' + ext
+        num += 1
+    return newf
