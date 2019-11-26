@@ -1,9 +1,18 @@
 from PIL import Image, ImageDraw
+import palette
 import os
 
-def gif_to_png(image, imagemask):
-    
-
+def gif_to_png(im, immask):
+    #convert the images
+    im = im.convert('RGBA')
+    immask = immask.convert('RGBA')
+    #change all white pixels in the mask to trasparency
+    immask.putdata(palette.replace_color(immask.getdata(), (255, 255, 255, 255), (255, 255, 255, 0)))
+    #change all black pixels in the image to trasparency
+    im.putdata(palette.replace_color(im.getdata(), (0, 0, 0, 255), (255, 255, 255, 0)))
+    #paste the image
+    immask.paste(im, (0, 0), im)
+    return immask
 
 #this function parses the cfg file of an image. it takes the filename of the cfg file and returns all the lines related to the images contained in it, plus width, height and space of the joined image (converted to int)
 def parse_cfg(filename):
@@ -26,6 +35,9 @@ def has_cfg(im): return os.path.isfile(os.path.splitext(im.filename)[0] + '.cfg'
 def check_sp_args(spw, sph, imw, imh): return isposn(spw) and isposn(sph) and isposn(imw) and isposn(imh)
 
 def can_separe_sp(im, imw, imh): return has_cfg(im) or (isposn(imw) and isposn(imh))
+
+#this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
+def get_save_dir(odir, img): return odir if odir != 'same' else os.path.dirname(img.filename)
 
 #this function gets the images on which to operate and returns a list of images. can search recursively as well.
 def get_images(d, include_gifs, include_subdirs):
@@ -51,3 +63,22 @@ def get_filename(f, d):
         newf = bn + ' (' + str(num) + ')' + ext
         num += 1
     return newf
+
+#this function checks the input directories and the output directories. it'll automatically remove any input directory that doesn't exist, but it'll raise an error if no input directory remains, or if the output directory doesn't exist. when everything is ok, it'll return the directories.
+def check_dirs(idir, odir):
+    if not os.path.isdir(odir) and odir != 'same':
+        raise FileNotFoundError('ERROR: ' + odir + ' was not found. Please make sure it exists first.')
+
+    dirsToRemove = []
+    for d in idir:
+        if not os.path.isdir(d):
+            print('ERROR: ' + d + ' was not found. Please make sure it exists first. (The directory will be removed)')
+            dirsToRemove.append(d)
+    for d in dirsToRemove:
+        idir.remove(d)
+    if len(idir) == 0:
+        raise FileNotFoundError("ERROR: No real input directory found. Quitting the joining process.")
+
+    if len(dirsToRemove) > 0: 
+        print("Any directory not found will be skipped.\n")
+    return (idir, odir)

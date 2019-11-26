@@ -7,6 +7,7 @@ import helperdefs
 import palette
 import imagejoin
 import re
+import colorsys
 
 #this function simply returns all the arguments. i made this to separe the argument stuff from the main.
 def get_args():
@@ -36,35 +37,13 @@ def get_args():
     args = parser.parse_args()
     return args
 
-#this function checks the input directories and the output directories. it'll automatically remove any input directory that doesn't exist, but it'll raise an error if no input directory remains, or if the output directory doesn't exist. when everything is ok, it'll return the directories.
-def check_dirs(idir, odir):
-    if not os.path.isdir(odir) and odir != 'same':
-        raise FileNotFoundError('ERROR: ' + odir + ' was not found. Please make sure it exists first.')
-
-    dirsToRemove = []
-    for d in idir:
-        if not os.path.isdir(d):
-            print('ERROR: ' + d + ' was not found. Please make sure it exists first. (The directory will be removed)')
-            dirsToRemove.append(d)
-    for d in dirsToRemove:
-        idir.remove(d)
-    if len(idir) == 0:
-        raise FileNotFoundError("ERROR: No real input directory found. Quitting the joining process.")
-
-    if len(dirsToRemove) > 0: 
-        print("Any directory not found will be skipped.\n")
-    return (idir, odir)
-
-#this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
-def get_save_dir(odir, img):
-    return odir if odir != 'same' else os.path.dirname(img.filename)
-
 def real_main():
     args = get_args()
 
     #error checking for input dir and output dir
-    args.input_dir, args.output_dir = check_dirs(args.input_dir, args.output_dir)
-
+    args.input_dir, args.output_dir = helperdefs.check_dirs(args.input_dir, args.output_dir)
+    
+    #get all the images
     image_list = []
     for d in args.input_dir:
         image_list += helperdefs.get_images(d, args.convert_gifs, args.include_subdirs)
@@ -73,7 +52,7 @@ def real_main():
 
     image_configs = ''                 #string that contains name, width and height for all images  (used in joining)
     max_width, max_height = 0, 0       #max width and height for all the images                     (used in joining)
-    palette_set = set()                #palette for all the images                                  (used in joining)
+    palettes = []                #palette for all the images                                  (used in joining)
     resn = float(args.resize / 100) #calculates resizing                                         (used everywhere)
     new_image_list = []                #keeps a list of the images after the operations             (used everywhere)
 
@@ -102,16 +81,22 @@ def real_main():
             continue
 
         if img.filename.endswith('.gif'):
-            img = helperFunctions.helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+            img = helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+            fn = os.path.splitext(fn)[0] + '.png'
         w, h = int(w * resn), int(h * resn);
-        image_configs += os.path.basename(img.filename) + '|' + str(w) + '|' + str(h) + '\n'
+        image_configs += os.path.basename(fn) + '|' + str(w) + '|' + str(h) + '\n'
         img = img.resize((w, h), Image.NEAREST)
 
         #copy the resulting image to a new list and preserve filename
         img.filename = fn 
         new_image_list.append(img)
         
-        palette_set.add(frozenset(palette.get_palette(img)))
+        #get palette and append it to the palette list
+        pal = palette.get_palette(img)
+        if not palette.check_subset(pal, palettes):
+            pal.sort()
+            pal.sort(key=lambda rgb: colorsys.rgb_to_hsv(*rgb))
+            palettes.append(pal)
 
         #only get max_width and max_height when joining
         if not args.join == 'images': 
@@ -122,8 +107,8 @@ def real_main():
 
     if len(new_image_list) == 0:
         raise ValueError("ERROR: No image remaining.")
-
-    pal_image = palette.get_pal_image(palette_set)
+    
+    pal_image = palette.get_pal_image(palettes)
     if args.separe_palette:
         print('Saving palette image in ' + save_dir)
         pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
@@ -133,7 +118,7 @@ def real_main():
         #error checking for save dir
         if args.output_dir == 'same' and len(args.input_dir) != 1:
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
-        save_dir = get_save_dir(args.output_dir, new_image_list[0])
+        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0])
 
         #join the images
         if args.join == 'images':
@@ -158,7 +143,7 @@ def real_main():
         imagejoin.save_image(new_image, args.output_name + '.png', save_dir)
     elif args.separe:
         for img in new_image_list:
-            save_dir = get_save_dir(args.output_dir, img)
+            save_dir = helperdefs.get_save_dir(args.output_dir, img)
             print('Separing image: ' + os.path.basename(img.filename))
             try:
                 if args.separe == 'images':
@@ -170,7 +155,7 @@ def real_main():
             except ValueError as e:
                 print('ERROR: Cannot parse the cfg file correctly.')
     elif args.skip:
-        save_dir = get_save_dir(args.output_dir, img)
+        save_dir = helperdefs.get_save_dir(args.output_dir, img)
         for img in new_image_list:
             imagejoin.save_image(img, os.path.basename(img.filename), args.output_dir)
     else:

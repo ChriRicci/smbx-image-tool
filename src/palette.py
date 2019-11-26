@@ -3,10 +3,10 @@ import collections
 
 #this function gets the palette of an images. it should sort the colors too TODO
 def get_palette(img):
-    pal = set()
-    for _, color in img.convert('RGBA').getcolors():
-        if color != (0, 0, 0, 0):
-            pal.add(color)
+    pal = []
+    for colorTuple in img.getcolors():
+        if colorTuple[1][3] != 0: #check trasparency value
+            pal.append(colorTuple[1])
     return pal
 
 #this function takes a palette set and creates a new image from it. returns the image itself, plus its width and height.
@@ -38,3 +38,18 @@ def paste_palette(img, img_pal):
     img_with_pal.paste(img_pal, (0, imh))
 
     return img_with_pal
+
+def replace_color(data, oldc, newc):
+    newdata = []
+    for item in data:
+        if item == oldc:
+            newdata.append(newc)
+        else:
+            newdata.append(item)
+    return newdata
+
+def check_subset(p, plist):
+    for pal in plist:
+        if set(p).issubset(set(pal)):
+            return True
+    return False

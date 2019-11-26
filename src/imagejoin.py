@@ -20,7 +20,7 @@ def join_images(img_list, space, maxw, maxh):
 #this function joins images in a spritesheet. it takes a list of images, a max width and height and a space argument and return the joined image.
 def join_spritesheet(img_list, space, maxw, maxh):
     print('Creating new spritesheet: width = ' + str(maxw) + '; height = ' + str(maxh))
-    new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert("RGBA")
+    new_image = Image.new('RGBA', (maxw, maxh), (255, 120, 255, 255)).convert('RGBA')
     draw = ImageDraw.Draw(new_image)
     x, y = 0, 0
     for img in img_list:
