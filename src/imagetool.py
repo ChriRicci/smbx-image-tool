@@ -1,46 +1,17 @@
 from PIL import Image, ImageDraw
 import os
 import sys
-import argparse
-import collections
+import re
 import helperdefs
 import palette
 import imagejoin
-import re
-import colorsys
-
-#this function simply returns all the arguments. i made this to separe the argument stuff from the main.
-def get_args():
-    #help and version arguments
-    parser = argparse.ArgumentParser(description='This is a tool which can help in various tasks related to images. It can join images for easy recoloring, separing them, quickly resize all of them and much more.')
-    parser.add_argument('-v', '--version', action='version', version='SMBX Image Tool version 1.3')
-    #action arguments
-    parser.add_argument('-j', '--join', choices=['images', 'spritesheet'], help='Joins the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the directory ./edit, located in the program\'s directory. You can choose between joining images normally (by writing \'images\' after --join) or joining in a spritesheet (by writing \'spritesheet\'). If joining in a spritesheet, you\'ll need to specify --width and --height too.\n')
-    parser.add_argument('-s', '--separe', choices=['images', 'spritesheet'], help='Separates the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the image found in the program\'s directory (if it finds it).')
-    parser.add_argument('--skip', '--no-join-or-separe', action='store_true', help='Don\'t join pr separe, instead simply save the images to output directory. This can be used for debugging purposes, or to just do single actions like resizing the images or extracting their palettes.')
-    #directory arguments
-    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[sys.path[0] + '/edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
-    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=sys.path[0] + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
-    parser.add_argument('-in', '--input-name', metavar='', help='If given, when joining or separing the tool will search for filenames matching this name.')
-    parser.add_argument('-on', '--output-name', metavar='', default='joinedImages', help='If given, the tool will rename any output images by this name, followed by numbers if there is more than one image. The default is \'joinedImages\'') 
-    #spritesheet arguments
-    parser.add_argument('-spw', '--spritesheet-width', type=int, metavar='', help='The width of the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-sph', '--spritesheet-height', type=int, metavar='', help='The height of the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-imw', '--image-width', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-imh', '--image-height', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
-    #optional arguments, execute certain operations on images
-    parser.add_argument('-sp', '--space', default=0, type=int, metavar='', help='Specified the space between the images. Default is no space.')
-    parser.add_argument('-r', '--resize', default=100, type=int, metavar='', help='Specifies to resize the output image(s) by a certain number. pass 200 to resize them by double, 50 to resize them by half.')
-    parser.add_argument('--separe-palette', action='store_true', help='When specified, the tool will the save the palette as a separate image.')
-    parser.add_argument('--convert-gifs', action='store_true', help='When specified, it will convert any gif found and include them.')
-    parser.add_argument('--include-subdirs', action='store_true', help='When specified, the tool will search for images in subdirectories too.')
-    args = parser.parse_args()
-    return args
 
 def real_main():
-    args = get_args()
+    args = helperdefs.get_args()
+    
+    if not args.join and not args.separe and not args.skip:
+        args = helperdefs.initUI(args)
 
-    #error checking for input dir and output dir
     args.input_dir, args.output_dir = helperdefs.check_dirs(args.input_dir, args.output_dir)
     
     #get all the images
@@ -50,20 +21,20 @@ def real_main():
     if len(image_list) == 0:
         raise ValueError("ERROR: No image found in any directory.")
 
-    image_configs = ''                 #string that contains name, width and height for all images  (used in joining)
-    max_width, max_height = 0, 0       #max width and height for all the images                     (used in joining)
-    palettes = []                #palette for all the images                                  (used in joining)
-    resn = float(args.resize / 100) #calculates resizing                                         (used everywhere)
-    new_image_list = []                #keeps a list of the images after the operations             (used everywhere)
+    cfg_str = ''
+    max_width, max_height = 0, 0
+    palettes = []
+    resn = float(args.resize / 100)
+    new_image_list = []
 
     for img in image_list:
         w, h = img.size
         fn = img.filename
-
-        #filter images based on stuff
+        
         try:
             bn = os.path.basename(fn)
-            if fn.endswith('.gif'): #for gifs
+            #don't get a gif image if it doesn't have a mask, or if it's a mask.
+            if fn.endswith('.gif'):
                 if fn.endswith('m.gif'):
                     raise ValueError(bn + ' is a gif mask image. Skipping.')
                 elif not helperdefs.has_mask(fn):
@@ -72,10 +43,6 @@ def real_main():
                 raise ValueError(bn + ': The name of the image didn\'t match the input name. Skipping.')
             elif args.join and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
                 raise ValueError(bn + ': The image doesn\'t have the right width or height.')
-            elif args.separe == 'images' and not helperdefs.has_cfg(img): #separing checks
-                raise FileNotFoundError('.cfg file not found for ' + bn + '. Skipping.')
-            elif args.separe == 'spritesheet' and not helperdefs.can_separe_sp(img, args.image_width, args.image_height):
-                raise ValueError('.cfg file not found for ' + bn + ' and no spritesheet arguments were specified. Skipping.') 
         except Exception as e:
             print(e)
             continue
@@ -84,9 +51,13 @@ def real_main():
             img = helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
             fn = os.path.splitext(fn)[0] + '.png'
         w, h = int(w * resn), int(h * resn);
-        image_configs += os.path.basename(fn) + '|' + str(w) + '|' + str(h) + '\n'
+        cfg_str += os.path.basename(fn) + '|' + str(w) + '|' + str(h) + '\n'
         img = img.resize((w, h), Image.NEAREST)
 
+        #if not joining or separing, we can stop here
+        if args.skip:
+            save_dir = helperdefs.get_save_dir(args.output_dir, fn)
+            imagejoin.save_image(img, os.path.basename(fn), save_dir)
         #copy the resulting image to a new list and preserve filename
         img.filename = fn 
         new_image_list.append(img)
@@ -95,39 +66,42 @@ def real_main():
         pal = palette.get_palette(img)
         if not palette.check_subset(pal, palettes):
             pal.sort()
-            pal.sort(key=lambda rgb: colorsys.rgb_to_hsv(*rgb))
             palettes.append(pal)
-
+        
         #only get max_width and max_height when joining
         if not args.join == 'images': 
             continue 
         if h > max_height:
             max_height = h
         max_width += w + args.space
-
+    
+    #check again if there are no images
     if len(new_image_list) == 0:
         raise ValueError("ERROR: No image remaining.")
-    
+   
+    #get an image of the palette (to be pasted on joinedImages or to save separately)
     pal_image = palette.get_pal_image(palettes)
     if args.separe_palette:
+        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename)
         print('Saving palette image in ' + save_dir)
         pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
 
-    #branching for different options
     if args.join:
         #error checking for save dir
         if args.output_dir == 'same' and len(args.input_dir) != 1:
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
-        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0])
+        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename)
 
         #join the images
         if args.join == 'images':
             new_image = imagejoin.join_images(new_image_list, args.space, max_width, max_height)
+            cfg_str += '0|' + str(max_width) + '|' + str(max_height) + '|' + str(args.space)
         else:
             if not helperdefs.check_sp_args(args.spritesheet_width, args.spritesheet_height, args.image_width, args.image_height):
                 raise ValueError('ERROR: Can\'t join into a spritesheet without each one of the following:\n --spritesheet-width;\n --spritesheet-height;\n --image-width;\n --image-height')
             max_width = helperdefs.get_max_lenght(args.spritesheet_width, args.image_width, args.space)
             max_height = helperdefs.get_max_lenght(args.spritesheet_height, args.image_height, args.space)
+            cfg_str += '1|' + str(max_width) + '|' + str(max_height) + '|' + str(args.space)
             new_image = imagejoin.join_spritesheet(new_image_list, args.space, max_width, max_height)
         
         #paste the palette
@@ -136,27 +110,20 @@ def real_main():
             new_image = palette.paste_palette(new_image, pal_image)
         
         #Write to the cfg file.
-        with open(save_dir + '/' + helperdefs.get_filename(args.output_name + '.cfg', save_dir), 'w') as image_data:
-            image_data.write(image_configs + str(max_width) + '|' + str(max_height) + '|' + str(args.space))
+        with open(save_dir + '/' + args.output_name + '.cfg', 'w') as image_data: image_data.write(cfg_str)
         
         #save the joined image
         imagejoin.save_image(new_image, args.output_name + '.png', save_dir)
-    elif args.separe:
+    if args.separe:
         for img in new_image_list:
-            save_dir = helperdefs.get_save_dir(args.output_dir, img)
+            save_dir = helperdefs.get_save_dir(args.output_dir, img.filename)
             print('Separing image: ' + os.path.basename(img.filename))
-            try:
-                if args.separe == 'images':
-                    imagejoin.separe_image(img, save_dir, resn)
-                elif helperdefs.has_cfg(img):
-                    imagejoin.separe_spritesheet_cfg(img, save_dir, resn)
-                else:
-                    imagejoin.separe_spritesheet(img, save_dir, resn, args.output_name, args.image_width, args.image_height, args.space)
-            except ValueError as e:
-                print('ERROR: Cannot parse the cfg file correctly.')
-    elif args.skip:
-        save_dir = helperdefs.get_save_dir(args.output_dir, img)
-        for img in new_image_list:
-            imagejoin.save_image(img, os.path.basename(img.filename), args.output_dir)
-    else:
-        raise ValueError('ERROR: No action argument specified. Please specify one of the following:\n --join\n --separe\n --skip')
+            if helperdefs.has_cfg(img):
+                try:
+                    imagejoin.separe_withcfg(img, save_dir, resn)
+                except ValueError as e:
+                    print('ERROR: Cannot parse the cfg file correctly.')
+            elif helperdefs.can_separe_sp(img, args.image_width, args.image_height):
+                imagejoin.separe_spritesheet(img, save_dir, resn, args.output_name, args.image_width, args.image_height, args.space)
+            else:
+                print('Can\'t separe ' + os.path.basename(img.filename) + '. Skipping.')

@@ -37,6 +37,27 @@ def join_spritesheet(img_list, space, maxw, maxh):
             y += space + h
     return new_image
 
+#separes an image with cfg file. Whether it's an array of images or a spritesheet is determined by looking into the cfg file. Images are resized and then 
+def separe_withcfg(img, odir, resn):
+    lines, issp, maxw, maxh, space = helperdefs.parse_cfg(os.path.splitext(img.filename)[0] + '.cfg')
+    x, y = 0, 0
+    for line in lines:
+        filename, w, h = line.rstrip('\n').split('|')
+        print('Cropping image: ' + filename + ', width: ' + w + ', height: ' + h + '; ', end='')
+        w, h = int(float(w)*resn), int(float(h)*resn)
+        if issp:
+            cropped_img = img.crop((x, y, x + w, y + h))
+            x += space + w
+            if x >= maxw:
+                x = 0
+                y += space + h
+        else:
+            diff = (maxh - h) / 2
+            cropped_img = img.crop((x, diff, x + w, diff + h))
+            x += w + space
+        cropped_img = cropped_img.resize((w, h), Image.NEAREST)
+        save_image(cropped_img, filename, odir)
+
 #this function takes an image and crops the image contained in it. it looks into its .cfg file for specifications. new images are automatically saved into the outpit directory.
 def separe_image(img, odir, resn):
     lines, maxw, maxh, space = helperdefs.parse_cfg(os.path.splitext(img.filename)[0] + '.cfg')
@@ -45,10 +66,6 @@ def separe_image(img, odir, resn):
         filename, w, h = line.rstrip('\n').split('|')
         print('Cropping image: ' + filename + ', width: ' + w + ', height: ' + h + '; ', end='')
         w, h = int(float(w)*resn), int(float(h)*resn)
-        diff = (maxh - h) / 2
-        img.crop((x, diff, x + w, diff + h))
-        save_image(img, filename, odir)
-        x += w + space
 
 #this function separes a spritesheet. takes on input the image (assuming it's a spritesheet) and a resizing number and returns a list with every image separated. this version uses a cfg file.
 def separe_spritesheet_cfg(img, odir, resn):
@@ -58,12 +75,7 @@ def separe_spritesheet_cfg(img, odir, resn):
         filename, w, h = line.rstrip('\n').split('|')
         print('Cropping image: ' + filename + ', width: ' + w + ', height: ' + h + '; ', end='')
         w, h = int(float(w)*resn), int(float(h)*resn)
-        cropped_img = img.crop((x, y, x + w, y + h))
-        save_image(cropped_img, filename, odir)
-        x += space + w
-        if x >= maxw:
-            x = 0
-            y += space + h
+
 
 def separe_spritesheet(img, odir, resn, fn, im_width, im_height, space):
     x, y, f = 0, 0, 1
@@ -80,4 +92,4 @@ def separe_spritesheet(img, odir, resn, fn, im_width, im_height, space):
 #this function will simply save the images in the output directory.
 def save_image(img, fn, odir):
     print('Saving ' + fn + ' to ' + odir)
-    img.save(odir + '/' + helperdefs.get_filename(fn, odir))
+    img.save(odir + '/' + fn)

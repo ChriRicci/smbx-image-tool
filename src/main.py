@@ -16,6 +16,7 @@ def main():
     except KeyboardInterrupt:
         print('')
         sys.exit()
+    print('')
     input('Press any key to continue...')
     sys.exit()
 
