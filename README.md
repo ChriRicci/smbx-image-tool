@@ -31,7 +31,3 @@ This tool was originally made by FrozenQuills, but I asked and was granted the p
         --convert-gifs
         --include-subdirectories
         --space
-
-# To Do
-- Sort the colors when getting a palette from an image
-- Support converting a gif with mask
