@@ -41,7 +41,7 @@ def real_main():
                     raise FileNotFoundError('Mask not found for ' + bn + '. Skipping.')
             elif args.input_name != None and not re.match(args.input_name, os.path.basename(img.filename)): #output name
                 raise ValueError(bn + ': The name of the image didn\'t match the input name. Skipping.')
-            elif args.join and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
+            elif (args.join or args.skip) and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
                 raise ValueError(bn + ': The image doesn\'t have the right width or height.')
         except Exception as e:
             print(e)

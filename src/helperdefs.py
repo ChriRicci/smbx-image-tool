@@ -7,22 +7,22 @@ import argparse
 #this function simply returns all the arguments. i made this to separe the argument stuff from the main.
 def get_args():
     #help and version arguments
-    parser = argparse.ArgumentParser(description='This is a tool which can help in various tasks related to images. It can join images for easy recoloring, separing them, quickly resize all of them and much more.')
+    parser = argparse.ArgumentParser(description='A small tool for aiding in boring image editing. To be used with Super Mario Bros X')
     parser.add_argument('-v', '--version', action='version', version='SMBX Image Tool version 1.3')
     #action arguments
-    parser.add_argument('-j', '--join', choices=['images', 'spritesheet'], help='Joins the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the directory ./edit, located in the program\'s directory. You can choose between joining images normally (by writing \'images\' after --join) or joining in a spritesheet (by writing \'spritesheet\'). If joining in a spritesheet, you\'ll need to specify --width and --height too.\n')
+    parser.add_argument('-j', '--join', choices=['images', 'spritesheet'], help='Joins the images in the folder specified by --input-dir. When --input-dir is not specified, it will use the directory ./edit, located in the program\'s directory. You can choose between joining images normally (by writing \'images\' after --join) or joining in a spritesheet (by writing \'spritesheet\'). If joining in a spritesheet, you\'ll need to specify the spritesheet and image arguments too.')
     parser.add_argument('-s', '--separe', action='store_true', help='Separes the images in the folder specified by --input-dir. It can only separe images with a .cfg file (created with --join), but can separe other images if --image-width and --image-height are specified.')
     parser.add_argument('--skip', '--no-join-or-separe', action='store_true', help='Don\'t join pr separe, instead simply save the images to output directory. This can be used for debugging purposes, or to just do single actions like resizing the images or extracting their palettes.')
     #directory arguments
-    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[os.getcwd() + '/edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
-    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=os.getcwd() + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
+    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[os.getcwd() + '/edit'], help= 'The input directory, more directories can be specified. The default is "edit".')
+    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=os.getcwd() + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "output".')
     parser.add_argument('-in', '--input-name', metavar='', help='If given, when joining or separing the tool will search for filenames matching this name.')
     parser.add_argument('-on', '--output-name', metavar='', default='joinedImages', help='If given, the tool will rename any output images by this name, followed by numbers if there is more than one image. The default is \'joinedImages\'') 
     #spritesheet arguments
-    parser.add_argument('-spw', '--spritesheet-width', type=int, metavar='', help='The width of the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-sph', '--spritesheet-height', type=int, metavar='', help='The height of the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-imw', '--image-width', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
-    parser.add_argument('-imh', '--image-height', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
+    parser.add_argument('-spw', '--spritesheet-width', type=int, metavar='', help='The width of the spritesheet, will be ignored if not joining spritesheets.')
+    parser.add_argument('-sph', '--spritesheet-height', type=int, metavar='', help='The height of the spritesheet, will be ignored if not joining spritesheets.')
+    parser.add_argument('-imw', '--image-width', type=int, metavar='', help='Different behavior depending on whether it\'s separing or not. When joining (or skipping), this filters the images based on width and height. If separing spritesheets without a .cfg file, the images will be separed based on this argument.')
+    parser.add_argument('-imh', '--image-height', type=int, metavar='', help='See above.')
     #optional arguments, execute certain operations on images
     parser.add_argument('--same-dir', action='store_true', help='When specified, the output images are saved to the input directory. Won\'t work when joining images from multiple directories.')
     parser.add_argument('-sp', '--space', default=0, type=int, metavar='', help='Specified the space between the images. Default is no space.')
@@ -137,12 +137,13 @@ def initUI(args):
     elif choice == 2:
         args.join = 'spritesheet'
         args.output_dir = os.getcwd()
-        print('To join into a spritesheet, you\'ll need to insert width and height (in number of images) for the spritesheet and the size (in pixels) for a single image.')
+        print('To join into a spritesheet, you\'ll need to insert width and height (in number of images) for the spritesheet and the size (in pixels) for a single image. You\'ll also need to specify the space between the images.')
         try:
             args.spritesheet_width = int(input('Insert the spritesheet width: '))
             args.spritesheet_height = int(input('Insert the spritesheet height: '))
             args.image_width = int(input('Insert the image width: '))
             args.image_height = int(input('Insert the image height: '))
+            args.space = int(input('Insert the space: '))
         except ValueError as e:
             raise type(e)('Invalid choice.')
     elif choice == 3:
@@ -155,10 +156,11 @@ def initUI(args):
         args.output_dir = os.getcwd() + '/output'
         args.input_name = input('Insert the name of the image (with extension)(make sure it doesn\'t have a cfg file): ')
         args.output_name = input('Insert the name you want to give to the cropped images (a number will be added at the end): ')
-        print('To separe a spritesheet, you\'ll need to insert the size (in pixels) for a single image.')
+        print('To separe a spritesheet, you\'ll need to insert the size (in pixels) for a single image. You\'ll also need to specify the space between the images.')
         try:
             args.image_width = int(input('Insert the image width: '))
             args.image_height = int(input('Insert the image height: '))
+            args.space = int(input('Insert the space: '))
         except ValueError as e:
             raise type(e)('Invalid choice.')
     elif choice == 5:
