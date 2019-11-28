@@ -14,8 +14,8 @@ def get_args():
     parser.add_argument('-s', '--separe', action='store_true', help='Separes the images in the folder specified by --input-dir. It can only separe images with a .cfg file (created with --join), but can separe other images if --image-width and --image-height are specified.')
     parser.add_argument('--skip', '--no-join-or-separe', action='store_true', help='Don\'t join pr separe, instead simply save the images to output directory. This can be used for debugging purposes, or to just do single actions like resizing the images or extracting their palettes.')
     #directory arguments
-    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[sys.path[0] + '/edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
-    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=sys.path[0] + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
+    parser.add_argument('-idir', '--input-dir', nargs='+', metavar='DIR', default=[os.getcwd() + '/edit'], help= 'The input directory, more directories can be specified. The default is "./edit".')
+    parser.add_argument('-odir', '--output-dir', metavar='DIR', default=os.getcwd() + '/output', help='The output directory. Unlike --input-dir, you can only specify one. The default is "./output".')
     parser.add_argument('-in', '--input-name', metavar='', help='If given, when joining or separing the tool will search for filenames matching this name.')
     parser.add_argument('-on', '--output-name', metavar='', default='joinedImages', help='If given, the tool will rename any output images by this name, followed by numbers if there is more than one image. The default is \'joinedImages\'') 
     #spritesheet arguments
@@ -24,6 +24,7 @@ def get_args():
     parser.add_argument('-imw', '--image-width', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
     parser.add_argument('-imh', '--image-height', type=int, metavar='', help='The width of the images in the spritesheet, will be ignored if joining images normally.')
     #optional arguments, execute certain operations on images
+    parser.add_argument('--same-dir', action='store_true', help='When specified, the output images are saved to the input directory. Won\'t work when joining images from multiple directories.')
     parser.add_argument('-sp', '--space', default=0, type=int, metavar='', help='Specified the space between the images. Default is no space.')
     parser.add_argument('-r', '--resize', default=100, type=int, metavar='', help='Specifies to resize the output image(s) by a certain number. pass 200 to resize them by double, 50 to resize them by half.')
     parser.add_argument('--separe-palette', action='store_true', help='When specified, the tool will the save the palette as a separate image.')
@@ -66,7 +67,7 @@ def check_sp_args(spw, sph, imw, imh): return isposn(spw) and isposn(sph) and is
 def can_separe_sp(im, imw, imh): return has_cfg(im) or (isposn(imw) and isposn(imh))
 
 #this function checks what the real output directory should be (this is because users can pass same to the -odir argument to save in the same directory as -idir)
-def get_save_dir(odir, fn): return odir if odir != 'same' else os.path.dirname(fn)
+def get_save_dir(odir, fn, is_same): return odir if not is_same else os.path.dirname(fn)
 
 #this function gets the images on which to operate and returns a list of images. can search recursively as well.
 def get_images(d, include_gifs, include_subdirs):
@@ -151,7 +152,7 @@ def initUI(args):
     elif choice == 4:
         args.separe = 'spritesheet'
         args.input_dir = [os.getcwd()]
-        args.output_dir = './output'
+        args.output_dir = os.getcwd() + '/output'
         args.input_name = input('Insert the name of the image (with extension)(make sure it doesn\'t have a cfg file): ')
         args.output_name = input('Insert the name you want to give to the cropped images (a number will be added at the end): ')
         print('To separe a spritesheet, you\'ll need to insert the size (in pixels) for a single image.')
@@ -162,14 +163,14 @@ def initUI(args):
             raise type(e)('Invalid choice.')
     elif choice == 5:
         args.skip = True
-        args.output_dir = 'same'
+        args.same_dir = True
         try:
             args.resize = int(input('Insert a resize number (in %): '))
         except ValueError as e:
             raise type(e)('Invalid choice.')
     elif choice == 6:
         args.skip = True
-        args.output_dir = 'same'
+        args.same_dir = True
         args.output_name = 'images'
         args.separe_palette = True
     print('')

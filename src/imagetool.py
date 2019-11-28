@@ -56,7 +56,7 @@ def real_main():
 
         #if not joining or separing, we can stop here
         if args.skip:
-            save_dir = helperdefs.get_save_dir(args.output_dir, fn)
+            save_dir = helperdefs.get_save_dir(args.output_dir, fn, args.same_dir)
             imagejoin.save_image(img, os.path.basename(fn), save_dir)
         #copy the resulting image to a new list and preserve filename
         img.filename = fn 
@@ -82,15 +82,15 @@ def real_main():
     #get an image of the palette (to be pasted on joinedImages or to save separately)
     pal_image = palette.get_pal_image(palettes)
     if args.separe_palette:
-        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename)
+        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename, args.same_dir)
         print('Saving palette image in ' + save_dir)
         pal_image.save(save_dir + '/' + args.output_name + 'Palette.png')
 
     if args.join:
         #error checking for save dir
-        if args.output_dir == 'same' and len(args.input_dir) != 1:
+        if args.same_dir and len(args.input_dir) != 1:
             raise ValueError('ERROR: Saving to the same directory isn\'t supported with multiple input directories. Please specify an output directory.')
-        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename)
+        save_dir = helperdefs.get_save_dir(args.output_dir, new_image_list[0].filename, args.same_dir)
 
         #join the images
         if args.join == 'images':
@@ -116,7 +116,7 @@ def real_main():
         imagejoin.save_image(new_image, args.output_name + '.png', save_dir)
     if args.separe:
         for img in new_image_list:
-            save_dir = helperdefs.get_save_dir(args.output_dir, img.filename)
+            save_dir = helperdefs.get_save_dir(args.output_dir, img.filename, args.same_dir)
             print('Separing image: ' + os.path.basename(img.filename))
             if helperdefs.has_cfg(img):
                 try:
