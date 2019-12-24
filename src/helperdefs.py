@@ -32,7 +32,8 @@ def get_args():
     parser.add_argument('--include-subdirs', action='store_true', help='When specified, the tool will search for images in subdirectories too.')
     args = parser.parse_args()
     return args
-def gif_to_png(im, immask):
+
+def gif_to_png_mask(im, immask):
     #convert the images
     im = im.convert('RGBA')
     immask = immask.convert('RGBA')
@@ -43,6 +44,10 @@ def gif_to_png(im, immask):
     #paste the image
     immask.paste(im, (0, 0), im)
     return immask
+
+def gif_to_png(im):
+    im = im.convert('RGBA')
+    return im
 
 #this function parses the cfg file of an image. it takes the filename of the cfg file and returns all the lines related to the images contained in it, plus width, height and space of the joined image (converted to int)
 def parse_cfg(filename):

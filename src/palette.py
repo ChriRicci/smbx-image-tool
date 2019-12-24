@@ -4,7 +4,7 @@ import collections
 #this function gets the palette of an images. it should sort the colors too TODO
 def get_palette(img):
     pal = []
-    for colorTuple in img.getcolors():
+    for colorTuple in img.convert('RGBA').getcolors():
         if colorTuple[1][3] != 0: #check trasparency value
             pal.append(colorTuple[1])
     return pal

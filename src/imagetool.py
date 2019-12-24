@@ -37,8 +37,8 @@ def real_main():
             if fn.endswith('.gif'):
                 if fn.endswith('m.gif'):
                     raise ValueError(bn + ' is a gif mask image. Skipping.')
-                elif not helperdefs.has_mask(fn):
-                    raise FileNotFoundError('Mask not found for ' + bn + '. Skipping.')
+                #elif not helperdefs.has_mask(fn):
+                #    raise FileNotFoundError('Mask not found for ' + bn + '. Skipping.')
             elif args.input_name != None and not re.match(args.input_name, os.path.basename(img.filename)): #output name
                 raise ValueError(bn + ': The name of the image didn\'t match the input name. Skipping.')
             elif (args.join or args.skip) and helperdefs.isposn(args.image_width) and helperdefs.isposn(args.image_height) and not helperdefs.has_right_wh(w, h, args.image_width, args.image_height):
@@ -48,7 +48,10 @@ def real_main():
             continue
 
         if img.filename.endswith('.gif'):
-            img = helperdefs.gif_to_png(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
+            if not helperdefs.has_mask(fn):
+                img = helperdefs.gif_to_png(img)
+            else:
+                img = helperdefs.gif_to_png_mask(img, Image.open(os.path.splitext(img.filename)[0] + 'm.gif'))
             fn = os.path.splitext(fn)[0] + '.png'
         w, h = int(w * resn), int(h * resn);
         cfg_str += os.path.basename(fn) + '|' + str(w) + '|' + str(h) + '\n'
